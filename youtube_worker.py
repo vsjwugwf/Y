@@ -528,39 +528,52 @@ def _download_cobalt(video_id: str, save_dir: str) -> Optional[str]:
 
 
 def _download_yt_dlp_pot(video_id: str, save_dir: str) -> Optional[str]:
+    """
+    دانلود با yt-dlp + PO Token؛ در صورت نبودن توکن، از پروکسی WARP استفاده می‌کند.
+    """
+    pot_token = None
     # تلاش برای دریافت PO Token از سرور محلی
     try:
         token_resp = requests.post(
-            "http://localhost:4416/token",
+            f"{settings.PO_TOKEN_SERVER_URL}/token",
             json={"url": f"https://www.youtube.com/watch?v={video_id}"},
             timeout=5,
         )
         token_resp.raise_for_status()
         pot_token = token_resp.json().get("token")
+        _log.info("PO Token دریافت شد.")
     except Exception:
-        # بدون توکن نمی‌توان ادامه داد
-        return None
+        _log.warning("دریافت PO Token ناموفق، فقط از پروکسی WARP استفاده می‌شود.")
+
+    # تنظیمات yt-dlp
+    ydl_opts = {
+        "format": f"bestvideo[height<={settings.MAX_VIDEO_HEIGHT}]+bestaudio/best[height<={settings.MAX_VIDEO_HEIGHT}]",
+        "merge_output_format": "mp4",
+        "outtmpl": os.path.join(save_dir, f"{video_id}.%(ext)s"),
+        "quiet": True,
+        "noplaylist": True,
+        "ffmpeg_location": settings.FFMPEG_PATH,
+        "retries": 3,
+    }
+
+    # اگر توکن داریم، به extractor_args اضافه کن
+    if pot_token:
+        ydl_opts["extractor_args"] = {"youtubetab": {"pot": pot_token}}
+
+    # همیشه از پروکسی WARP استفاده کن (به عنوان fallback یا همراه)
+    ydl_opts["proxy"] = settings.WARP_PROXY_URL
 
     try:
         import yt_dlp
-        ydl_opts = {
-            "format": f"bestvideo[height<={settings.MAX_VIDEO_HEIGHT}]+bestaudio/best[height<={settings.MAX_VIDEO_HEIGHT}]",
-            "merge_output_format": "mp4",
-            "outtmpl": os.path.join(save_dir, f"{video_id}.%(ext)s"),
-            "quiet": True,
-            "noplaylist": True,
-            "ffmpeg_location": settings.FFMPEG_PATH,
-            "extractor_args": {"youtubetab": {"pot": pot_token}},
-            "retries": 3,
-        }
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             ydl.download([f"https://www.youtube.com/watch?v={video_id}"])
-        # یافتن فایل
+        # یافتن فایل خروجی
         result = _find_downloaded_file(video_id, save_dir, ".mp4") or \
                  _find_downloaded_file(video_id, save_dir, ".webm") or \
                  _find_downloaded_file(video_id, save_dir, ".mkv")
         return result
-    except Exception:
+    except Exception as e:
+        _log.warning(f"yt-dlp با PO Token/WARP شکست خورد: {e}")
         return None
 
 
@@ -657,6 +670,67 @@ def _download_pytube(video_id: str, save_dir: str) -> Optional[str]:
                 return final_path
     except Exception:
         return None
+    return None
+
+
+# ════════════════ متد جدید: دانلود با WARP + yt-dlp (اولویت بالا) ════════════════
+
+def _download_warp_yt_dlp(video_id: str, save_dir: str) -> Optional[str]:
+    """
+    دانلود ویدیو با yt-dlp از طریق پروکسی WARP. در صورت در دسترس بودن سرور PO Token،
+    توکن را نیز دریافت کرده و به yt-dlp تزریق می‌کند.
+    """
+    try:
+        import yt_dlp
+    except ImportError:
+        _log.error("yt-dlp نصب نیست.")
+        return None
+
+    # تنظیمات پایه
+    ydl_opts = {
+        "format": f"bestvideo[height<={settings.MAX_VIDEO_HEIGHT}]+bestaudio/best[height<={settings.MAX_VIDEO_HEIGHT}]",
+        "merge_output_format": "mp4",
+        "outtmpl": os.path.join(save_dir, f"{video_id}.%(ext)s"),
+        "quiet": True,
+        "noplaylist": True,
+        "ffmpeg_location": settings.FFMPEG_PATH,
+        "retries": 3,
+        # استفاده از پروکسی WARP
+        "proxy": settings.WARP_PROXY_URL,
+    }
+
+    # تلاش برای دریافت PO Token (در صورت فعال بودن سرور)
+    pot_token = None
+    try:
+        token_resp = requests.post(
+            f"{settings.PO_TOKEN_SERVER_URL}/token",
+            json={"url": f"https://www.youtube.com/watch?v={video_id}"},
+            timeout=5,
+        )
+        if token_resp.status_code == 200:
+            pot_token = token_resp.json().get("token")
+            _log.info("PO Token از سرور محلی دریافت شد.")
+    except Exception:
+        _log.info("سرور PO Token در دسترس نیست، فقط از WARP استفاده می‌شود.")
+
+    if pot_token:
+        # اضافه کردن توکن به extractor_args
+        ydl_opts["extractor_args"] = {"youtubetab": {"pot": pot_token}}
+
+    # اجرای دانلود
+    try:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            ydl.download([f"https://www.youtube.com/watch?v={video_id}"])
+        # پیدا کردن فایل خروجی
+        result = _find_downloaded_file(video_id, save_dir, ".mp4") or \
+                 _find_downloaded_file(video_id, save_dir, ".webm") or \
+                 _find_downloaded_file(video_id, save_dir, ".mkv")
+        if result:
+            _log.info(f"دانلود با WARP/yt-dlp موفق: {result}")
+            return result
+    except Exception as e:
+        _log.warning(f"دانلود WARP/yt-dlp شکست خورد: {e}")
+
     return None
 
 
@@ -783,13 +857,17 @@ def download_video(
     start_method: Optional[str] = None
 ) -> Tuple[Optional[str], Optional[str]]:
     """
-    دانلود ویدیو با زنجیره‌ای از متدها.
+    دانلود ویدیو با زنجیره‌ای از متدها (اولویت با WARP + yt-dlp).
     Returns:
         (مسیر فایل دانلود شده, نام متد موفق) یا (None, None)
     """
     os.makedirs(save_dir, exist_ok=True)
     if chain is None:
         chain = settings.DEFAULT_DOWNLOAD_CHAIN[:]
+
+    # ‼️ اضافه کردن متد جدید WARP به ابتدای زنجیره در صورت عدم وجود
+    if "warp_yt_dlp" not in chain:
+        chain.insert(0, "warp_yt_dlp")
 
     def _download_op(method_name: str, kwargs: dict) -> Optional[str]:
         vid = kwargs["video_id"]
@@ -806,6 +884,8 @@ def download_video(
             return _download_piped_stream(vid, directory)
         elif method_name == "pytube":
             return _download_pytube(vid, directory)
+        elif method_name == "warp_yt_dlp":   # ← متد جدید
+            return _download_warp_yt_dlp(vid, directory)
         else:
             _log.warning(f"متد دانلود ناشناخته: {method_name}")
             return None
