@@ -1,15 +1,35 @@
-name: YouTube Bot
+name: YouTube Bale Bot
 
 on:
   schedule:
-    # هر ۶ ساعت یکبار: ۰:۰۰, ۶:۰۰, ۱۲:۰۰, ۱۸:۰۰
     - cron: '0 */6 * * *'
-  workflow_dispatch:   # برای اجرای دستی از طریق تب Actions
+  workflow_dispatch:
 
 jobs:
   bot:
     runs-on: ubuntu-latest
-    timeout-minutes: 360   # حداکثر ۶ ساعت (گیت‌هاب بعد از این زمان job را می‌کشد)
+    timeout-minutes: 360
+
+    # ═══════════ سرویس‌های جانبی ═══════════
+    services:
+      warp-proxy:
+        image: monerum/wgcf-proxy
+        ports:
+          - 8080:8080
+        options: >-
+          --health-cmd="curl -f http://localhost:8080"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=3
+      po-token:
+        image: bgutil/ytdlp-pot-provider
+        ports:
+          - 4416:4416
+        options: >-
+          --health-cmd="curl -f http://localhost:4416"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=3
 
     steps:
       - name: Checkout repository
@@ -31,8 +51,7 @@ jobs:
           BALE_BOT_TOKEN: ${{ secrets.BALE_BOT_TOKEN }}
         run: |
           start_time=$(date +%s)
-          max_duration_seconds=$((5 * 3600 + 55 * 60))  # ۵ ساعت و ۵۵ دقیقه
-
+          max_duration_seconds=$((5 * 3600 + 55 * 60))
           while true; do
             current_time=$(date +%s)
             elapsed=$((current_time - start_time))
@@ -40,7 +59,6 @@ jobs:
               echo "⏰ زمان اجرا به ۵:۵۵ رسید. خروج آرام..."
               break
             fi
-
             python main.py || true
             sleep 2
           done
