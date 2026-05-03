@@ -1,0 +1,7 @@
+requests>=2.28
+yt-dlp
+innertube
+scrapetube
+py-yt-search
+pytube
+beautifulsoup4
