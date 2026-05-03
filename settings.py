@@ -41,7 +41,7 @@ USER_AGENT = (
 FFMPEG_PATH = "ffmpeg"   # فرض بر این است که ffmpeg در PATH سیستم موجود است
 
 # ──────────────── شناسه ادمین پیش‌فرض ────────────────
-DEFAULT_ADMIN_CHAT_ID = 46829437   # در صورت نبودن فایل admin.json، این شناسه استفاده می‌شود
+DEFAULT_ADMIN_CHAT_ID = 123456789   # در صورت نبودن فایل admin.json، این شناسه استفاده می‌شود
 
 # ──────────────── تعریف متدهای جستجو ────────────────
 SEARCH_METHODS = {
@@ -251,3 +251,7 @@ DEFAULT_SESSION_SETTINGS = {
     "result_page_size": 5,
     "show_thumbnails": True,
 }
+
+# ──────────────── تنظیمات پروکسی و PO Token ────────────────
+WARP_PROXY_URL = "http://127.0.0.1:8080"        # آدرس پروکسی HTTP که توسط کانتینر wgcf-proxy ایجاد می‌شود
+PO_TOKEN_SERVER_URL = "http://127.0.0.1:4416"    # آدرس سرور تولید PO Token (bgutil-ytdlp-pot-provider)
