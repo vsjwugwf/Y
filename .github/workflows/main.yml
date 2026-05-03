@@ -10,10 +10,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 360
 
-    # ═══════════ سرویس‌های جانبی ═══════════
     services:
       warp-proxy:
-        image: monerum/wgcf-proxy
+        image: ghcr.io/rennf93/wgcf-proxy
         ports:
           - 8080:8080
         options: >-
