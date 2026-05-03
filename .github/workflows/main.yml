@@ -1,15 +1,15 @@
-name: YouTube Bale Bot
+name: YouTube Bot
 
 on:
   schedule:
     # هر ۶ ساعت یکبار: ۰:۰۰, ۶:۰۰, ۱۲:۰۰, ۱۸:۰۰
     - cron: '0 */6 * * *'
-  workflow_dispatch:   # برای تست دستی
+  workflow_dispatch:   # برای اجرای دستی از طریق تب Actions
 
 jobs:
   bot:
     runs-on: ubuntu-latest
-    timeout-minutes: 360   # ۶ ساعت، حداکثر مجاز گیت‌هاب
+    timeout-minutes: 360   # حداکثر ۶ ساعت (گیت‌هاب بعد از این زمان job را می‌کشد)
 
     steps:
       - name: Checkout repository
@@ -30,7 +30,6 @@ jobs:
         env:
           BALE_BOT_TOKEN: ${{ secrets.BALE_BOT_TOKEN }}
         run: |
-          # شروع زمان
           start_time=$(date +%s)
           max_duration_seconds=$((5 * 3600 + 55 * 60))  # ۵ ساعت و ۵۵ دقیقه
 
@@ -42,7 +41,6 @@ jobs:
               break
             fi
 
-            # اجرای ربات (اگر کرش کرد، دوباره اجرا شود ولی زمان مانده کنترل شود)
             python main.py || true
             sleep 2
           done
